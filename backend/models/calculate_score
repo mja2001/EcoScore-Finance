@@ -1,0 +1,60 @@
+@app.route('/api/loans/<loan_id>/score', methods=['POST'])
+def calculate_score(loan_id):
+    """Calculate environmental score for a loan"""
+    try:
+        loan = Loan.get_by_id(loan_id)
+        
+        if not loan:
+            return jsonify({'error': 'Loan not found'}), 404
+        
+        # TODO: Replace mock with actual TF ML prediction (Day 2 integration)
+        # Example: Load model from env MODEL_PATH
+        # import tensorflow as tf
+        # model = tf.keras.models.load_model(os.getenv('MODEL_PATH'))
+        # features = prepare_features(loan)  # e.g., [loan_amount, etc.]
+        # eco_score = model.predict(features)[0][0] * 100
+        eco_score = 75.5  # Mock; replace with ML
+        predicted_carbon_reduction = 1250.0
+        
+        success = Loan.update_score(loan_id, eco_score, predicted_carbon_reduction)
+        
+        if not success:
+            return jsonify({'error': 'Failed to update score'}), 500
+
+        certified = False
+        tx_id = None
+        if eco_score > 80:
+            try:
+                # Borrower addr: Convert to Solidity address (EVM-style; derive if needed)
+                borrower_addr = loan.get('borrower_address', '0x0000000000000000000000000000000000000000')  # Default null addr; add to Loan model
+
+                params = ContractFunctionParams()
+                params.addUInt256(int(loan_id))
+                params.addUInt256(int(eco_score))
+                params.addAddress(borrower_addr)
+
+                tx = (
+                    ContractExecuteTransaction()
+                    .setContractId(ECO_CONTRACT_ID)
+                    .setGas(200000)
+                    .setFunction("certifyLoan", params)
+                )
+                resp = tx.execute(client)
+                receipt = resp.getReceipt(client)
+                tx_id = resp.transactionId.toString()
+                certified = True
+                socketio.emit('loan_certified', {'loan_id': loan_id, 'eco_score': eco_score, 'tx_id': tx_id})
+            except Exception as e:
+                print(f"Blockchain certification failed: {e}")
+
+        return jsonify({
+            'loan_id': loan_id,
+            'eco_score': eco_score,
+            'predicted_carbon_reduction': predicted_carbon_reduction,
+            'certified': certified,
+            'tx_id': tx_id,
+            'message': 'Score calculated successfully'
+        }), 200
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
