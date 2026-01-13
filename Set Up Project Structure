@@ -1,0 +1,15 @@
+# Create and navigate to project
+mkdir ecoscore-finance
+cd ecoscore-finance
+
+# Create all directories
+mkdir -p frontend/src/{components,pages,utils,assets}
+mkdir -p backend/{models,routes,services,config}
+mkdir -p blockchain/contracts
+mkdir -p ml-models/{training,inference,data}
+mkdir -p iot-simulator
+mkdir -p docs
+mkdir -p tests
+
+# Initialize git
+git init
