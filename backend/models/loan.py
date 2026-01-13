@@ -5,7 +5,7 @@ class Loan:
     """Loan data model"""
     
     def __init__(self, loan_id, borrower_name, loan_amount, project_type, 
-                 description, eco_score=None, predicted_carbon_reduction=None):
+                 description, eco_score=None, predicted_carbon_reduction=None, borrower_address=None):
         self.loan_id = loan_id
         self.borrower_name = borrower_name
         self.loan_amount = loan_amount
@@ -13,6 +13,7 @@ class Loan:
         self.description = description
         self.eco_score = eco_score
         self.predicted_carbon_reduction = predicted_carbon_reduction
+        self.borrower_address = borrower_address  # New: For blockchain certification
         self.status = 'pending'
         self.created_at = datetime.now()
     
@@ -28,8 +29,8 @@ class Loan:
             cursor.execute("""
                 INSERT INTO loans 
                 (loan_id, borrower_name, loan_amount, project_type, description, 
-                 eco_score, predicted_carbon_reduction, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                 eco_score, predicted_carbon_reduction, borrower_address, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """, (
                 loan_data['loan_id'],
@@ -39,6 +40,7 @@ class Loan:
                 loan_data['description'],
                 loan_data.get('eco_score'),
                 loan_data.get('predicted_carbon_reduction'),
+                loan_data.get('borrower_address'),  # New field
                 'pending'
             ))
             
@@ -65,7 +67,7 @@ class Loan:
         cursor.execute("""
             SELECT loan_id, borrower_name, loan_amount, project_type, 
                    description, eco_score, predicted_carbon_reduction, 
-                   status, created_at
+                   borrower_address, status, created_at
             FROM loans WHERE loan_id = %s
         """, (loan_id,))
         
@@ -82,8 +84,9 @@ class Loan:
                 'description': row[4],
                 'eco_score': float(row[5]) if row[5] else None,
                 'predicted_carbon_reduction': float(row[6]) if row[6] else None,
-                'status': row[7],
-                'created_at': row[8].isoformat() if row[8] else None
+                'borrower_address': row[7],  # New
+                'status': row[8],
+                'created_at': row[9].isoformat() if row[9] else None
             }
         return None
     
@@ -97,7 +100,7 @@ class Loan:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT loan_id, borrower_name, loan_amount, project_type, 
-                   eco_score, status, created_at
+                   eco_score, borrower_address, status, created_at
             FROM loans ORDER BY created_at DESC
         """)
         
@@ -113,8 +116,9 @@ class Loan:
                 'loan_amount': float(row[2]),
                 'project_type': row[3],
                 'eco_score': float(row[4]) if row[4] else None,
-                'status': row[5],
-                'created_at': row[6].isoformat() if row[6] else None
+                'borrower_address': row[5],  # New
+                'status': row[6],
+                'created_at': row[7].isoformat() if row[7] else None
             })
         
         return loans
