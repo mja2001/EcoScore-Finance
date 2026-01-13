@@ -5,8 +5,17 @@ from dotenv import load_dotenv
 import os
 from config.database import DatabaseConfig
 from models.loan import Loan
+import tensorflow as tf
+import numpy as np
+from hedera import (
+    AccountId,
+    PrivateKey,
+    Client,
+    ContractExecuteTransaction,
+    ContractFunctionParams,
+)
 
-# Load environment variables
+# Load environment variables (from env.txt renamed to .env)
 load_dotenv()
 
 # Initialize Flask app
@@ -14,6 +23,18 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Hedera SDK Setup
+network = os.getenv('HEDERA_NETWORK', 'testnet')
+account_id = AccountId.fromString(os.getenv('HEDERA_ACCOUNT_ID'))
+private_key = PrivateKey.fromString(os.getenv('HEDERA_PRIVATE_KEY'))
+ECO_CONTRACT_ID = AccountId.fromString(os.getenv('ECO_CONTRACT_ID'))  # From deployment
+
+client = Client.forName(network)
+client.setOperator(account_id, private_key)
+
+# Load ML Model (LSTM from Day 2)
+model = tf.keras.models.load_model(os.getenv('MODEL_PATH'))
 
 # Initialize database tables
 print("Initializing database...")
@@ -99,38 +120,54 @@ def get_loan(loan_id):
 def calculate_score(loan_id):
     """Calculate environmental score for a loan"""
     try:
-        # Get loan data
         loan = Loan.get_by_id(loan_id)
         
         if not loan:
-            return jsonify({
-                'error': 'Loan not found'
-            }), 404
+            return jsonify({'error': 'Loan not found'}), 404
         
-        # TODO: Call ML model for prediction (we'll implement this in Day 2)
-        # For now, return mock score
-        eco_score = 75.5
-        predicted_carbon_reduction = 1250.0
+        # Prepare features for ML (customize based on model inputs; e.g., sequence for LSTM)
+        # Example: 12-month projection from loan data
+        features = [loan['loan_amount'], loan['predicted_carbon_reduction'] or 0,  # Add more
+                    1 if loan['project_type'] == 'solar' else 0, ...]  # Encode categoricals
+        seq_data = np.array([features] * 12).reshape(1, 12, len(features))
+        eco_score = model.predict(seq_data)[0][0] * 100  # Assume regression output, scale to 0-100
+        predicted_carbon_reduction = ...  # Compute or from model
         
-        # Update loan with score
         success = Loan.update_score(loan_id, eco_score, predicted_carbon_reduction)
         
-        if success:
-            return jsonify({
-                'loan_id': loan_id,
-                'eco_score': eco_score,
-                'predicted_carbon_reduction': predicted_carbon_reduction,
-                'message': 'Score calculated successfully'
-            }), 200
-        else:
-            return jsonify({
-                'error': 'Failed to update score'
-            }), 500
+        if not success:
+            return jsonify({'error': 'Failed to update score'}), 500
+
+        certified = False
+        tx_id = None
+        if eco_score > 80:
+            try:
+                borrower_addr = loan['borrower_address'] or '0x0000000000000000000000000000000000000000'
+                params = ContractFunctionParams()
+                params.addUInt256(int(loan_id))
+                params.addUInt256(int(eco_score))
+                params.addAddress(borrower_addr)
+                
+                tx = ContractExecuteTransaction().setContractId(ECO_CONTRACT_ID).setGas(200000).setFunction("certifyLoan", params)
+                resp = tx.execute(client)
+                receipt = resp.getReceipt(client)
+                tx_id = resp.transactionId.toString()
+                certified = True
+                socketio.emit('loan_certified', {'loan_id': loan_id, 'eco_score': eco_score, 'tx_id': tx_id})
+            except Exception as e:
+                print(f"Blockchain certification failed: {e}")
+
+        return jsonify({
+            'loan_id': loan_id,
+            'eco_score': eco_score,
+            'predicted_carbon_reduction': predicted_carbon_reduction,
+            'certified': certified,
+            'tx_id': tx_id,
+            'message': 'Score calculated successfully'
+        }), 200
             
     except Exception as e:
-        return jsonify({
-            'error': str(e)
-        }), 500
+        return jsonify({'error': str(e)}), 500
 
 # WebSocket events for real-time updates
 @socketio.on('connect')
