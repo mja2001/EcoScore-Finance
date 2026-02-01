@@ -39,7 +39,6 @@
 **Database**: PostgreSQL, MongoDB, Redis  
 **IoT**: MQTT, Sensor Integration  
 
-```
 ## 🎯 Roadmap
 
 - AI environmental scoring model
@@ -51,24 +50,21 @@
 - Carbon credit marketplace
 - Bank API integrations
 
-```
 ## 📄 License
 
 This project is licensed under the MIT License - see [LICENSE](./LICENSE) file.
-```
 
 ## 👥 Team
 
 **Alayham Almajali** - [@mja2001](https://github.com/mja2001)
-```
+
 ## 🏆 Hackathon
 
 Built for [LMA Edge Hackathon 2025](https://lmaedgehackathon.devpost.com/)
-```
+
 ## 📧 Contact
 
 - GitHub: [@mja2001](https://github.com/mja2001)
 - LinkedIn: [Alayham Almajali](https://www.linkedin.com/in/alayhamalmajali/)
----
-
+  
 ⭐ Star this repo if you find it useful!
